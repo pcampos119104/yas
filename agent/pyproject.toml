@@ -5,6 +5,7 @@ description = "LangChain agent for the YAS ballet project"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "httpx>=0.28.0,<1.0.0",
     "langchain>=1.0.0,<2.0.0",
     "langchain-openai>=1.0.0,<2.0.0",
     "pydantic-settings>=2.0.0,<3.0.0",

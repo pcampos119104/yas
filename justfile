@@ -12,9 +12,9 @@ setup:
 build:
     {{ compose }} build agent
 
-# Run one interactive agent request
-agent:
-    {{ compose }} run --rm agent
+# Transcribe and organize one audio file from the repository directory
+agent audio:
+    {{ compose }} run --rm agent uv run --frozen python -m agent.main "/workspace/{{ audio }}"
 
 # Run the test suite in a container
 test:

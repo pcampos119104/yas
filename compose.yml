@@ -9,5 +9,6 @@ services:
         required: false
     volumes:
       - ./agent:/agent
+      - ./:/workspace:ro
     stdin_open: true
     tty: true

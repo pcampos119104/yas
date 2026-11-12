@@ -12,6 +12,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    openai_api_key: SecretStr | None = None
-    openai_model: str = "gpt-4.1-mini"
-    openai_temperature: float = 0.0
+    openrouter_api_key: SecretStr | None = None
+    openrouter_model: str = "openai/gpt-4.1-mini"
+    openrouter_temperature: float = 0.0
+    openrouter_transcription_model: str = "openai/gpt-transcribe"
+    transcription_timeout_seconds: float = 120.0
