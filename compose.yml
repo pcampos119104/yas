@@ -1,0 +1,13 @@
+services:
+  agent:
+    build:
+      context: ./agent
+      dockerfile: dev.Dockerfile
+    command: uv run --frozen python -m agent.main
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./agent:/agent
+    stdin_open: true
+    tty: true
