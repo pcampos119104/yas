@@ -25,11 +25,13 @@ def _format_step(step: ExerciseStep) -> list[str]:
     return lines
 
 
-def _format_exercise(exercise: BalletExercise, index: int) -> list[str]:
-    title = exercise.name or f"Exercício {index}"
-    lines = [f"## {title}"]
+def _format_exercise(exercise: BalletExercise) -> list[str]:
+    lines = [f"## {exercise.title}"]
     if exercise.starting_position:
         lines.append(f"**Posição inicial:** {exercise.starting_position}")
+    if exercise.teacher_tips:
+        lines.extend(["", "**Dicas da professora:**"])
+        lines.extend(f"- {tip}" for tip in exercise.teacher_tips)
     lines.append("")
     if exercise.steps:
         for step in exercise.steps:
@@ -46,7 +48,7 @@ def format_lesson(lesson: BalletLesson) -> str:
         for index, exercise in enumerate(lesson.exercises, start=1):
             if index > 1:
                 lines.append("")
-            lines.extend(_format_exercise(exercise, index))
+            lines.extend(_format_exercise(exercise))
     else:
         lines.append("Nenhum exercício pôde ser identificado com segurança.")
 

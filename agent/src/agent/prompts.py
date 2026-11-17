@@ -39,6 +39,7 @@ BALLET_VOCABULARY = (
     "derrière",
     "cambré",
     "sous-sus",
+    "en cloche",
 )
 
 
@@ -59,6 +60,27 @@ Separe os eventos em ordem cronológica e deixe claras as ações simultâneas d
 pernas, pés, braços, cabeça e tronco. Quando houver mais de uma interpretação
 possível, registre a dúvida em ambiguidades em vez de escolher uma alternativa
 arbitrariamente.
+
+Identifique cada exercício independente da aula e registre-o como um item
+separado em exercises. Considere como limites as transições explícitas da
+professora, como "próximo exercício" ou "agora faremos", e mudanças inequívocas
+para uma nova sequência. Não crie um exercício separado para cada termo técnico
+quando vários movimentos fizerem parte da mesma sequência.
+
+Todo exercício deve ter um título. Use o título dito pela professora quando ele
+existir. Caso contrário, crie um título curto e descritivo usando somente o
+movimento principal ou outras informações inequívocas da transcrição. Não
+atribua ao exercício uma classificação técnica que não esteja sustentada pelo
+que foi narrado.
+
+Extraia em teacher_tips as dicas, correções, intenções e pontos de atenção que a
+professora destacar para o exercício, por exemplo mostrar mais os braços,
+movimentar mais a cabeça ou prestar atenção em uma finalização. Preserve o
+sentido da fala sem acrescentar explicações técnicas. As dicas não substituem
+os passos: quando uma fala também determinar como executar um movimento,
+registre a informação relevante no passo e preserve a orientação em
+teacher_tips. Associe cada dica ao exercício correspondente; se essa associação
+não estiver clara, registre a dúvida em ambiguities.
 """.strip()
 
 

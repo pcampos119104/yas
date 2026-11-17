@@ -16,13 +16,17 @@ def test_agent_is_created_with_structured_response() -> None:
     assert factory.call_args.kwargs["model"] is model
     assert factory.call_args.kwargs["response_format"] is BalletLesson
     assert "battement tendu" in SYSTEM_PROMPT
+    assert "Todo exercício deve ter um título" in SYSTEM_PROMPT
+    assert "teacher_tips" in SYSTEM_PROMPT
+    assert "en cloche" in SYSTEM_PROMPT
 
 
 def test_organize_transcription_returns_structured_lesson() -> None:
     lesson = BalletLesson(
         exercises=[
             BalletExercise(
-                name="Pliés",
+                title="Pliés",
+                teacher_tips=["Mostrar mais os braços"],
                 steps=[ExerciseStep(order=1, action="Dois demi-pliés")],
             )
         ]

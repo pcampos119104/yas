@@ -37,13 +37,19 @@ class ExerciseStep(BaseModel):
 class BalletExercise(BaseModel):
     """A single exercise identified in the narration."""
 
-    name: str | None = Field(
-        default=None,
-        description="Nome do exercício, somente quando informado ou inequívoco",
+    title: str = Field(
+        min_length=1,
+        description=(
+            "Título informado ou descrição curta inferida fielmente da narração"
+        ),
     )
     starting_position: str | None = Field(
         default=None,
         description="Posição inicial explicitamente informada",
+    )
+    teacher_tips: list[str] = Field(
+        default_factory=list,
+        description="Dicas, correções e pontos de atenção dados pela professora",
     )
     steps: list[ExerciseStep] = Field(
         default_factory=list,

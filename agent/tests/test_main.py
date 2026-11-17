@@ -8,8 +8,12 @@ def sample_lesson() -> BalletLesson:
     return BalletLesson(
         exercises=[
             BalletExercise(
-                name="Pliés",
+                title="Pliés",
                 starting_position="Primeira posição",
+                teacher_tips=[
+                    "Mostrar bastante os braços",
+                    "Movimentar mais a cabeça",
+                ],
                 steps=[
                     ExerciseStep(
                         order=1,
@@ -31,7 +35,30 @@ def test_format_lesson_renders_exercise_and_ambiguities() -> None:
     assert "**Posição inicial:** Primeira posição" in result
     assert "1. Realizar dois demi-pliés" in result
     assert "**Repetições:** 2" in result
+    assert "**Dicas da professora:**" in result
+    assert "- Mostrar bastante os braços" in result
+    assert "- Movimentar mais a cabeça" in result
     assert "## Ambiguidades" in result
+
+
+def test_format_lesson_renders_each_exercise_separately() -> None:
+    lesson = BalletLesson(
+        exercises=[
+            BalletExercise(
+                title="Battement tendu",
+                steps=[ExerciseStep(order=1, action="Realizar tendus à frente")],
+            ),
+            BalletExercise(
+                title="En cloche",
+                steps=[ExerciseStep(order=1, action="Realizar en cloche")],
+            ),
+        ]
+    )
+
+    result = format_lesson(lesson)
+
+    assert "## Battement tendu" in result
+    assert "## En cloche" in result
 
 
 def test_main_prints_transcription_and_organized_lesson(capsys) -> None:

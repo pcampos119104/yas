@@ -81,7 +81,7 @@ Futuramente, essas ambiguidades poderão ser apresentadas à professora para esc
 
 - Python com uv para gerenciamento do projeto.
 - LangChain para integração com os LLMs.
-- OpenRouter como provedor inicial.
+- OpenAI como provedor para transcrição e organização dos exercícios.
 - Pydantic para Structured Output.
 - LangSmith para tracing e avaliações.
 - Ferramenta de Speech-to-Text a definir, possivelmente Whisper.

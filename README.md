@@ -3,7 +3,7 @@
 Projeto para transcrever e organizar exercícios de balé narrados em áudio,
 organizado como um monorepo:
 
-- `agent/`: pipeline de transcrição e organização com LangChain e OpenRouter.
+- `agent/`: pipeline de transcrição e organização com OpenAI e LangChain.
 - `app/`: reservado para o futuro webapp e mantido vazio nesta versão.
 
 O conteúdo de `reference/` serve apenas como material local de consulta e não
@@ -18,7 +18,7 @@ Para executar sem containers, use Python 3.13 e `uv`.
 
 ## Configuração
 
-Crie o arquivo local de ambiente e informe sua chave do OpenRouter:
+Crie o arquivo local de ambiente e informe sua chave da OpenAI:
 
 ```bash
 just setup
@@ -27,10 +27,10 @@ just setup
 Edite `.env`:
 
 ```dotenv
-OPENROUTER_API_KEY=sua-chave
-OPENROUTER_MODEL=openai/gpt-4.1-mini
-OPENROUTER_TEMPERATURE=0
-OPENROUTER_TRANSCRIPTION_MODEL=openai/gpt-transcribe
+OPENAI_API_KEY=sua-chave-openai
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_TEMPERATURE=0
+OPENAI_TRANSCRIPTION_MODEL=gpt-transcribe
 ```
 
 ## Uso com Docker
@@ -62,6 +62,6 @@ uv run --project agent ballet-agent aula.ogg
 As configurações são lidas das variáveis de ambiente ou do arquivo `.env` no
 diretório em que o comando é executado.
 
-O fluxo usa `openai/gpt-transcribe` pelo endpoint de Speech-to-Text do
-OpenRouter. A mesma `OPENROUTER_API_KEY` é usada para a transcrição e para o
-modelo que organiza os exercícios.
+O fluxo usa `gpt-transcribe` diretamente pela API oficial da OpenAI. O agente
+LangChain usa `ChatOpenAI` com `gpt-4.1-mini` para interpretar e organizar os
+exercícios. As duas etapas compartilham a mesma `OPENAI_API_KEY`.
