@@ -16,6 +16,10 @@ build:
 agent audio:
     {{ compose }} run --rm agent uv run --frozen python -m agent.main "/workspace/{{ audio }}"
 
+# Publish existing Markdown files without invoking transcription or the LLM
+publish:
+    {{ compose }} run --rm agent uv run --frozen python -m agent.publish
+
 # Run the test suite in a container
 test:
     {{ compose }} run --rm --no-deps agent uv run --frozen pytest

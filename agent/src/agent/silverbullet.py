@@ -45,6 +45,8 @@ class PublishedPage:
 class SilverBulletPublisher:
     """Publish generated Markdown through SilverBullet's HTTP file API."""
 
+    USER_AGENT = "YAS-Ballet-Agent/0.1"
+
     def __init__(self, base_url: str, token: str, publish_path: str) -> None:
         if not base_url.startswith(("http://", "https://")):
             raise ValueError("SILVERBULLET_URL deve começar com http:// ou https://")
@@ -61,13 +63,57 @@ class SilverBulletPublisher:
     def _api_url(self, file_path: str) -> str:
         return f"{self.base_url}/.fs/{quote(file_path, safe='/')}"
 
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.token}",
+            "User-Agent": self.USER_AGENT,
+            "X-Sync-Mode": "true",
+        }
+
+    def _http_error(self, error: HTTPError, action: str, file_path: str) -> None:
+        try:
+            details = error.read().decode("utf-8", errors="replace").strip()
+        except (AttributeError, OSError):
+            details = ""
+        message = (
+            f"SilverBullet respondeu com HTTP {error.code} "
+            f"ao {action} {file_path}"
+        )
+        if details:
+            message += f": {details}"
+        raise SilverBulletError(message) from error
+
+    def _page_exists(self, file_path: str) -> bool:
+        request = Request(
+            self._api_url(file_path),
+            method="GET",
+            headers=self._headers(),
+        )
+        try:
+            with urlopen(request, timeout=30):
+                return True
+        except HTTPError as error:
+            if error.code == 404:
+                return False
+            self._http_error(error, "consultar", file_path)
+        except URLError as error:
+            raise SilverBulletError(
+                f"não foi possível acessar o SilverBullet: {error.reason}"
+            ) from error
+        return False
+
     def _create_page(self, file_path: str, content: str) -> None:
+        if self._page_exists(file_path):
+            raise PageAlreadyExistsError(
+                f"a página {self._page_url(file_path.removesuffix('.md'))} já existe"
+            )
+
         request = Request(
             self._api_url(file_path),
             data=content.encode("utf-8"),
             method="PUT",
             headers={
-                "Authorization": f"Bearer {self.token}",
+                **self._headers(),
                 "Content-Type": "text/markdown; charset=utf-8",
                 "If-None-Match": "*",
             },
@@ -80,9 +126,7 @@ class SilverBulletPublisher:
                 raise PageAlreadyExistsError(
                     f"a página {self._page_url(file_path.removesuffix('.md'))} já existe"
                 ) from error
-            raise SilverBulletError(
-                f"SilverBullet respondeu com HTTP {error.code} ao publicar {file_path}"
-            ) from error
+            self._http_error(error, "publicar", file_path)
         except URLError as error:
             raise SilverBulletError(
                 f"não foi possível acessar o SilverBullet: {error.reason}"

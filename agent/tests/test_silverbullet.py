@@ -7,6 +7,7 @@ import pytest
 from agent.config import Settings
 from agent.silverbullet import (
     PageAlreadyExistsError,
+    SilverBulletError,
     SilverBulletPublisher,
     create_publisher,
 )
@@ -41,16 +42,26 @@ def test_ensure_index_creates_dynamic_list() -> None:
     )
     response = MagicMock()
     response.__enter__.return_value = response
+    missing = HTTPError("url", 404, "Not Found", {}, None)
 
-    with patch("agent.silverbullet.urlopen", return_value=response) as urlopen:
+    with patch(
+        "agent.silverbullet.urlopen",
+        side_effect=[missing, response],
+    ) as urlopen:
         publisher.ensure_index()
 
-    request = urlopen.call_args.args[0]
+    existence_request = urlopen.call_args_list[0].args[0]
+    assert existence_request.get_method() == "GET"
+    assert existence_request.get_header("User-agent") == "YAS-Ballet-Agent/0.1"
+    assert existence_request.get_header("X-sync-mode") == "true"
+
+    request = urlopen.call_args_list[1].args[0]
     assert request.full_url == (
         "https://notes.example.com/.fs/ballet/aulas.md"
     )
     assert request.get_header("Authorization") == "Bearer secret-token"
     assert request.get_header("If-none-match") == "*"
+    assert request.get_header("X-sync-mode") == "true"
     content = request.data.decode()
     assert "# Aulas de balé" in content
     assert "^ballet/aulas/[^/]+$" in content
@@ -62,10 +73,13 @@ def test_ensure_index_accepts_an_existing_page() -> None:
         "secret-token",
         "ballet/aulas",
     )
-    error = HTTPError("url", 412, "Precondition Failed", {}, None)
+    response = MagicMock()
+    response.__enter__.return_value = response
 
-    with patch("agent.silverbullet.urlopen", side_effect=error):
+    with patch("agent.silverbullet.urlopen", return_value=response) as urlopen:
         publisher.ensure_index()
+
+    assert urlopen.call_count == 1
 
 
 def test_publish_creates_page_and_returns_public_url(tmp_path: Path) -> None:
@@ -78,11 +92,15 @@ def test_publish_creates_page_and_returns_public_url(tmp_path: Path) -> None:
     )
     response = MagicMock()
     response.__enter__.return_value = response
+    missing = HTTPError("url", 404, "Not Found", {}, None)
 
-    with patch("agent.silverbullet.urlopen", return_value=response) as urlopen:
+    with patch(
+        "agent.silverbullet.urlopen",
+        side_effect=[missing, response],
+    ) as urlopen:
         published = publisher.publish(local_path)
 
-    request = urlopen.call_args.args[0]
+    request = urlopen.call_args_list[1].args[0]
     assert request.full_url == (
         "https://notes.example.com/.fs/ballet/aulas/tendu_devant.md"
     )
@@ -100,10 +118,30 @@ def test_publish_does_not_overwrite_existing_page(tmp_path: Path) -> None:
         "secret-token",
         "ballet/aulas",
     )
-    error = HTTPError("url", 412, "Precondition Failed", {}, None)
+    response = MagicMock()
+    response.__enter__.return_value = response
 
     with (
-        patch("agent.silverbullet.urlopen", side_effect=error),
+        patch("agent.silverbullet.urlopen", return_value=response) as urlopen,
         pytest.raises(PageAlreadyExistsError, match="já existe"),
     ):
         publisher.publish(local_path)
+
+    assert urlopen.call_count == 1
+
+
+def test_http_error_includes_response_details() -> None:
+    publisher = SilverBulletPublisher(
+        "https://notes.example.com",
+        "secret-token",
+        "ballet/aulas",
+    )
+    body = MagicMock()
+    body.read.return_value = b"error code: 1010"
+    error = HTTPError("url", 403, "Forbidden", {}, body)
+
+    with (
+        patch("agent.silverbullet.urlopen", side_effect=error),
+        pytest.raises(SilverBulletError, match="error code: 1010"),
+    ):
+        publisher.ensure_index()

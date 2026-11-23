@@ -56,6 +56,16 @@ vertical e também como uma linha do tempo Mermaid. As ambiguidades da aula são
 salvas separadamente em `output/ambiguidades.md`. São aceitos arquivos `.ogg`,
 `.mp3` e `.wav`.
 
+Para publicar novamente os arquivos Markdown que já estão em `output/`, sem
+transcrever áudio nem chamar o LLM:
+
+```bash
+just publish
+```
+
+O comando publica todos os arquivos `.md`, ignora outros formatos e preserva
+páginas que já existam no SilverBullet.
+
 Outros comandos disponíveis:
 
 ```bash
