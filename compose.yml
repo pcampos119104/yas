@@ -10,5 +10,6 @@ services:
     volumes:
       - ./agent:/agent
       - ./:/workspace:ro
+      - ./output:/agent/output
     stdin_open: true
     tty: true

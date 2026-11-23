@@ -3,66 +3,33 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from agent.agent import organize_transcription
-from agent.models import BalletExercise, BalletLesson, ExerciseStep
+from agent.config import Settings
+from agent.markdown import save_lesson
+from agent.models import BalletLesson
+from agent.silverbullet import PublishedPage, create_publisher
 from agent.transcription import transcribe_audio
 
-
-def _append_optional(lines: list[str], label: str, value: object) -> None:
-    if value is not None and value != "" and value != []:
-        lines.append(f"   - **{label}:** {value}")
+OUTPUT_DIR = Path("output")
 
 
-def _format_step(step: ExerciseStep) -> list[str]:
-    lines = [f"{step.order}. {step.action}"]
-    _append_optional(lines, "Contagem", step.counts)
-    _append_optional(lines, "Repetições", step.repetitions)
-    _append_optional(lines, "Pernas e pés", step.legs_and_feet)
-    _append_optional(lines, "Braços", step.arms)
-    _append_optional(lines, "Cabeça e tronco", step.head_and_torso)
-    _append_optional(lines, "Direção", step.direction)
-    if step.notes:
-        _append_optional(lines, "Observações", "; ".join(step.notes))
-    return lines
-
-
-def _format_exercise(exercise: BalletExercise) -> list[str]:
-    lines = [f"## {exercise.title}"]
-    if exercise.starting_position:
-        lines.append(f"**Posição inicial:** {exercise.starting_position}")
-    if exercise.teacher_tips:
-        lines.extend(["", "**Dicas da professora:**"])
-        lines.extend(f"- {tip}" for tip in exercise.teacher_tips)
-    lines.append("")
-    if exercise.steps:
-        for step in exercise.steps:
-            lines.extend(_format_step(step))
-    else:
-        lines.append("Nenhum passo pôde ser identificado com segurança.")
-    return lines
-
-
-def format_lesson(lesson: BalletLesson) -> str:
-    """Render a structured lesson as readable Markdown for the terminal."""
-    lines: list[str] = ["# Exercícios organizados", ""]
-    if lesson.exercises:
-        for index, exercise in enumerate(lesson.exercises, start=1):
-            if index > 1:
-                lines.append("")
-            lines.extend(_format_exercise(exercise))
-    else:
-        lines.append("Nenhum exercício pôde ser identificado com segurança.")
-
-    if lesson.ambiguities:
-        lines.extend(["", "## Ambiguidades"])
-        lines.extend(f"- {ambiguity}" for ambiguity in lesson.ambiguities)
-    return "\n".join(lines)
-
-
-def run(audio_path: str | Path) -> tuple[str, BalletLesson]:
+def run(audio_path: str | Path) -> BalletLesson:
     """Transcribe one audio file and organize its ballet exercises."""
     transcription = transcribe_audio(audio_path)
-    lesson = organize_transcription(transcription)
-    return transcription, lesson
+    return organize_transcription(transcription)
+
+
+def publish_exercises(paths: list[Path]) -> list[PublishedPage]:
+    """Publish exercise files when SilverBullet is configured."""
+    publisher = create_publisher(Settings())
+    if publisher is None:
+        return []
+
+    publisher.ensure_index()
+    return [
+        publisher.publish(path)
+        for path in paths
+        if path.name != "ambiguidades.md"
+    ]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -82,15 +49,20 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     try:
-        transcription, lesson = run(args.audio)
-    except (ValueError, RuntimeError) as error:
+        lesson = run(args.audio)
+        saved_paths = save_lesson(lesson, OUTPUT_DIR)
+        published_pages = publish_exercises(saved_paths)
+    except (OSError, ValueError, RuntimeError) as error:
         parser.error(str(error))
 
-    print("# Transcrição")
-    print()
-    print(transcription)
-    print()
-    print(format_lesson(lesson))
+    if saved_paths:
+        for path in saved_paths:
+            print(f"Arquivo criado: {path}")
+    else:
+        print("Nenhum exercício ou ambiguidade pôde ser salvo.")
+
+    for page in published_pages:
+        print(f"Página publicada: {page.url}")
 
 
 if __name__ == "__main__":

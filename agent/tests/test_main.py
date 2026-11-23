@@ -1,6 +1,7 @@
+from pathlib import Path
 from unittest.mock import patch
 
-from agent.main import format_lesson, main
+from agent.main import main, publish_exercises
 from agent.models import BalletExercise, BalletLesson, ExerciseStep
 
 
@@ -10,66 +11,37 @@ def sample_lesson() -> BalletLesson:
             BalletExercise(
                 title="Pliés",
                 starting_position="Primeira posição",
-                teacher_tips=[
-                    "Mostrar bastante os braços",
-                    "Movimentar mais a cabeça",
-                ],
-                steps=[
-                    ExerciseStep(
-                        order=1,
-                        action="Realizar dois demi-pliés",
-                        repetitions=2,
-                        arms="Primeira posição no primeiro",
-                    )
-                ],
+                steps=[ExerciseStep(order=1, action="Realizar dois demi-pliés")],
             )
         ],
         ambiguities=["A posição final dos braços não ficou clara."],
     )
 
 
-def test_format_lesson_renders_exercise_and_ambiguities() -> None:
-    result = format_lesson(sample_lesson())
-
-    assert "## Pliés" in result
-    assert "**Posição inicial:** Primeira posição" in result
-    assert "1. Realizar dois demi-pliés" in result
-    assert "**Repetições:** 2" in result
-    assert "**Dicas da professora:**" in result
-    assert "- Mostrar bastante os braços" in result
-    assert "- Movimentar mais a cabeça" in result
-    assert "## Ambiguidades" in result
-
-
-def test_format_lesson_renders_each_exercise_separately() -> None:
-    lesson = BalletLesson(
-        exercises=[
-            BalletExercise(
-                title="Battement tendu",
-                steps=[ExerciseStep(order=1, action="Realizar tendus à frente")],
-            ),
-            BalletExercise(
-                title="En cloche",
-                steps=[ExerciseStep(order=1, action="Realizar en cloche")],
-            ),
-        ]
-    )
-
-    result = format_lesson(lesson)
-
-    assert "## Battement tendu" in result
-    assert "## En cloche" in result
-
-
-def test_main_prints_transcription_and_organized_lesson(capsys) -> None:
-    with patch(
-        "agent.main.run",
-        return_value=("Faça dois demi-pliés.", sample_lesson()),
+def test_main_saves_markdown_files_and_prints_their_paths(
+    tmp_path: Path, capsys
+) -> None:
+    output_dir = tmp_path / "output"
+    with (
+        patch("agent.main.run", return_value=sample_lesson()),
+        patch("agent.main.OUTPUT_DIR", output_dir),
+        patch("agent.main.publish_exercises", return_value=[]),
     ):
         main(["aula.ogg"])
 
     output = capsys.readouterr().out
-    assert "# Transcrição" in output
-    assert "Faça dois demi-pliés." in output
-    assert "# Exercícios organizados" in output
-    assert "## Pliés" in output
+    assert f"Arquivo criado: {output_dir / 'plies.md'}" in output
+    assert f"Arquivo criado: {output_dir / 'ambiguidades.md'}" in output
+    assert (output_dir / "plies.md").is_file()
+    assert (output_dir / "ambiguidades.md").is_file()
+
+
+def test_publish_exercises_skips_ambiguities(tmp_path: Path) -> None:
+    exercise_path = tmp_path / "plies.md"
+    ambiguity_path = tmp_path / "ambiguidades.md"
+    with patch("agent.main.create_publisher") as create_publisher:
+        client = create_publisher.return_value
+        publish_exercises([exercise_path, ambiguity_path])
+
+    client.ensure_index.assert_called_once_with()
+    client.publish.assert_called_once_with(exercise_path)

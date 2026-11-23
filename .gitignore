@@ -22,3 +22,8 @@ htmlcov/
 
 # Local reference material
 /reference/
+
+# Generated exercise files
+/output/
+/input/
+

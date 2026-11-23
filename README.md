@@ -31,7 +31,16 @@ OPENAI_API_KEY=sua-chave-openai
 OPENAI_MODEL=gpt-4.1-mini
 OPENAI_TEMPERATURE=0
 OPENAI_TRANSCRIPTION_MODEL=gpt-transcribe
+SILVERBULLET_URL=https://notes.faramir.com.br
+SILVERBULLET_TOKEN=sua-chave-do-silverbullet
+SILVERBULLET_PUBLISH_PATH=ballet/aulas
 ```
+
+As variáveis `SILVERBULLET_URL` e `SILVERBULLET_TOKEN` são opcionais, mas devem
+ser informadas juntas. Quando configuradas, cada exercício também é publicado
+em `https://notes.faramir.com.br/ballet/aulas/<nome-do-exercicio>`. A página
+`/ballet/aulas` é criada automaticamente com uma lista dinâmica dos exercícios,
+caso ainda não exista. Páginas existentes nunca são sobrescritas.
 
 ## Uso com Docker
 
@@ -41,8 +50,11 @@ just agent aula.ogg
 ```
 
 O arquivo de áudio deve estar dentro do diretório do repositório. O comando
-transcreve o áudio, organiza os exercícios e imprime os dois resultados no
-terminal. São aceitos arquivos `.ogg`, `.mp3` e `.wav`.
+transcreve o áudio, organiza os exercícios e cria um arquivo Markdown para cada
+exercício no diretório `output/`. Cada arquivo apresenta a sequência na forma
+vertical e também como uma linha do tempo Mermaid. As ambiguidades da aula são
+salvas separadamente em `output/ambiguidades.md`. São aceitos arquivos `.ogg`,
+`.mp3` e `.wav`.
 
 Outros comandos disponíveis:
 
