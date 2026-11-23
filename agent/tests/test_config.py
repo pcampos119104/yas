@@ -16,6 +16,9 @@ def test_settings_read_api_environment(
     monkeypatch.setenv("SILVERBULLET_URL", "https://notes.example.com")
     monkeypatch.setenv("SILVERBULLET_TOKEN", "silverbullet-test-token")
     monkeypatch.setenv("SILVERBULLET_PUBLISH_PATH", "ballet/aulas")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "telegram-test-token")
+    monkeypatch.setenv("TELEGRAM_ALLOWED_CHAT_ID", "-100123")
+    monkeypatch.setenv("TELEGRAM_ALLOWED_USER_IDS", "[123, 456]")
 
     settings = Settings(_env_file=None)
 
@@ -30,6 +33,10 @@ def test_settings_read_api_environment(
         settings.silverbullet_token.get_secret_value() == "silverbullet-test-token"
     )
     assert settings.silverbullet_publish_path == "ballet/aulas"
+    assert settings.telegram_bot_token is not None
+    assert settings.telegram_bot_token.get_secret_value() == "telegram-test-token"
+    assert settings.telegram_allowed_chat_id == -100123
+    assert settings.telegram_allowed_user_ids == [123, 456]
 
 
 def test_model_uses_openai_configuration() -> None:
@@ -68,3 +75,15 @@ def test_empty_silverbullet_environment_disables_publication(
 
     assert settings.silverbullet_url is None
     assert settings.silverbullet_token is None
+
+
+def test_empty_optional_telegram_environment_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "")
+    monkeypatch.setenv("TELEGRAM_ALLOWED_CHAT_ID", "")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.telegram_bot_token is None
+    assert settings.telegram_allowed_chat_id is None

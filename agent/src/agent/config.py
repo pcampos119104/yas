@@ -1,4 +1,6 @@
-from pydantic import SecretStr, field_validator
+from pathlib import Path
+
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,8 +22,20 @@ class Settings(BaseSettings):
     silverbullet_url: str | None = None
     silverbullet_token: SecretStr | None = None
     silverbullet_publish_path: str = "ballet/aulas"
+    telegram_bot_token: SecretStr | None = None
+    telegram_allowed_chat_id: int | None = None
+    telegram_allowed_user_ids: list[int] = Field(default_factory=list)
+    telegram_max_audio_bytes: int = 20 * 1024 * 1024
+    telegram_retry_interval_seconds: float = 300.0
+    outbox_dir: Path = Path("data/outbox")
 
-    @field_validator("silverbullet_url", "silverbullet_token", mode="before")
+    @field_validator(
+        "silverbullet_url",
+        "silverbullet_token",
+        "telegram_bot_token",
+        "telegram_allowed_chat_id",
+        mode="before",
+    )
     @classmethod
     def empty_optional_values_are_none(cls, value: object) -> object:
         """Keep optional publication disabled when dotenv values are blank."""

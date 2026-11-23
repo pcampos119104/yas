@@ -142,10 +142,69 @@ class SilverBulletPublisher:
         except PageAlreadyExistsError:
             pass
 
+    def check_connection(self) -> None:
+        """Validate connectivity and authentication without changing pages."""
+        file_path = f"{self.publish_path}.md"
+        request = Request(
+            self._api_url(file_path),
+            method="GET",
+            headers=self._headers(),
+        )
+        try:
+            with urlopen(request, timeout=30):
+                pass
+        except HTTPError as error:
+            if error.code != 404:
+                self._http_error(error, "testar conexão com", file_path)
+        except URLError as error:
+            raise SilverBulletError(
+                f"não foi possível acessar o SilverBullet: {error.reason}"
+            ) from error
+
     def publish(self, local_path: Path) -> PublishedPage:
         """Publish one Markdown file without replacing an existing page."""
         remote_path = f"{self.publish_path}/{local_path.name}"
         self._create_page(remote_path, local_path.read_text(encoding="utf-8"))
+        return PublishedPage(
+            local_path=local_path,
+            url=self._page_url(remote_path.removesuffix(".md")),
+        )
+
+    def publish_idempotent(self, local_path: Path) -> PublishedPage:
+        """Publish once and accept an existing page only when content matches."""
+        remote_path = f"{self.publish_path}/{local_path.name}"
+        content = local_path.read_text(encoding="utf-8")
+        request = Request(
+            self._api_url(remote_path),
+            method="GET",
+            headers=self._headers(),
+        )
+        try:
+            with urlopen(request, timeout=30) as response:
+                existing_content = response.read().decode("utf-8")
+        except HTTPError as error:
+            if error.code != 404:
+                self._http_error(error, "consultar", remote_path)
+        except URLError as error:
+            raise SilverBulletError(
+                f"não foi possível acessar o SilverBullet: {error.reason}"
+            ) from error
+        else:
+            if existing_content == content:
+                return PublishedPage(
+                    local_path=local_path,
+                    url=self._page_url(remote_path.removesuffix(".md")),
+                )
+            raise PageAlreadyExistsError(
+                f"a página {self._page_url(remote_path.removesuffix('.md'))} "
+                "já existe com conteúdo diferente"
+            )
+
+        try:
+            self._create_page(remote_path, content)
+        except PageAlreadyExistsError:
+            # Another retry may have completed between the GET and PUT.
+            return self.publish_idempotent(local_path)
         return PublishedPage(
             local_path=local_path,
             url=self._page_url(remote_path.removesuffix(".md")),

@@ -41,7 +41,7 @@ def test_format_exercise_renders_vertical_presentation_and_timeline() -> None:
     assert "- **Direção:** Devant" in result
     assert "- **Observações:** Finalizar alongado" in result
     assert "## Linha do tempo" in result
-    assert "```mermaid\nflowchart LR" in result
+    assert "```mermaid\nflowchart TD" in result
     assert 'S1["1. Realizar tendu devant<br/>Contagem: 1 a 2"]' in result
     assert "S1 --> S2" in result
 
@@ -83,3 +83,18 @@ def test_exercise_named_ambiguidades_does_not_overwrite_special_file(
     paths = save_lesson(lesson, tmp_path)
 
     assert [path.name for path in paths] == ["ambiguidades_2.md", "ambiguidades.md"]
+
+
+def test_save_lesson_adds_job_suffix_to_exercise_files(tmp_path: Path) -> None:
+    lesson = BalletLesson(
+        exercises=[sample_exercise("Pliés"), sample_exercise("Pliés")],
+        ambiguities=["Uma dúvida."],
+    )
+
+    paths = save_lesson(lesson, tmp_path, filename_suffix="01jabc")
+
+    assert [path.name for path in paths] == [
+        "plies-01jabc.md",
+        "plies_2-01jabc.md",
+        "ambiguidades.md",
+    ]

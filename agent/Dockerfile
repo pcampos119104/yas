@@ -16,7 +16,8 @@ RUN useradd --create-home --uid 1000 agent
 
 COPY --chown=agent:agent . .
 RUN uv sync --frozen --no-dev
+RUN mkdir -p /agent/data && chown agent:agent /agent/data
 
 USER agent
 
-CMD ["python", "-m", "agent.main"]
+CMD ["python", "-m", "agent.telegram"]

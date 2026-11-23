@@ -37,7 +37,7 @@ def _format_timeline(steps: list[ExerciseStep]) -> list[str]:
         lines.append("Nenhum passo pôde ser identificado com segurança.")
         return lines
 
-    lines.extend(["```mermaid", "flowchart LR"])
+    lines.extend(["```mermaid", "flowchart TD"])
     for index, step in enumerate(steps, start=1):
         label = f"{step.order}. {_mermaid_text(step.action)}"
         if step.counts:
@@ -82,12 +82,17 @@ def slugify_title(title: str) -> str:
     return slug or "exercicio"
 
 
-def _available_filename(title: str, used_names: set[str]) -> str:
+def _available_filename(
+    title: str,
+    used_names: set[str],
+    filename_suffix: str | None = None,
+) -> str:
     stem = slugify_title(title)
-    filename = f"{stem}.md"
+    suffix_text = f"-{filename_suffix}" if filename_suffix else ""
+    filename = f"{stem}{suffix_text}.md"
     suffix = 2
     while filename in used_names:
-        filename = f"{stem}_{suffix}.md"
+        filename = f"{stem}_{suffix}{suffix_text}.md"
         suffix += 1
     used_names.add(filename)
     return filename
@@ -99,14 +104,23 @@ def format_ambiguities(ambiguities: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def save_lesson(lesson: BalletLesson, output_dir: Path) -> list[Path]:
+def save_lesson(
+    lesson: BalletLesson,
+    output_dir: Path,
+    *,
+    filename_suffix: str | None = None,
+) -> list[Path]:
     """Save each exercise and the lesson ambiguities as Markdown files."""
     output_dir.mkdir(parents=True, exist_ok=True)
     saved_paths: list[Path] = []
     used_names = {"ambiguidades.md"}
 
     for exercise in lesson.exercises:
-        path = output_dir / _available_filename(exercise.title, used_names)
+        path = output_dir / _available_filename(
+            exercise.title,
+            used_names,
+            filename_suffix,
+        )
         path.write_text(format_exercise(exercise), encoding="utf-8")
         saved_paths.append(path)
 

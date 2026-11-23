@@ -11,5 +11,9 @@ services:
       - ./agent:/agent
       - ./:/workspace:ro
       - ./output:/agent/output
+      - yas-data:/agent/data
     stdin_open: true
     tty: true
+
+volumes:
+  yas-data:

@@ -20,6 +20,18 @@ agent audio:
 publish:
     {{ compose }} run --rm agent uv run --frozen python -m agent.publish
 
+# Run the audio-only Telegram bot with long polling
+telegram:
+    {{ compose }} run --rm agent uv run --frozen python -m agent.telegram
+
+# Validate the Telegram token through getMe
+test-telegram:
+    {{ compose }} run --rm --no-deps agent uv run --frozen python -m agent.check_telegram
+
+# Validate SilverBullet connectivity and authentication without changing pages
+test-silverbullet:
+    {{ compose }} run --rm --no-deps agent uv run --frozen python -m agent.check_silverbullet
+
 # Run the test suite in a container
 test:
     {{ compose }} run --rm --no-deps agent uv run --frozen pytest

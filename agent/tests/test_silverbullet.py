@@ -82,6 +82,22 @@ def test_ensure_index_accepts_an_existing_page() -> None:
     assert urlopen.call_count == 1
 
 
+def test_check_connection_accepts_missing_index_without_writing() -> None:
+    publisher = SilverBulletPublisher(
+        "https://notes.example.com",
+        "secret-token",
+        "ballet/aulas",
+    )
+    missing = HTTPError("url", 404, "Not Found", {}, None)
+
+    with patch("agent.silverbullet.urlopen", side_effect=missing) as urlopen:
+        publisher.check_connection()
+
+    request = urlopen.call_args.args[0]
+    assert request.get_method() == "GET"
+    assert request.full_url == "https://notes.example.com/.fs/ballet/aulas.md"
+
+
 def test_publish_creates_page_and_returns_public_url(tmp_path: Path) -> None:
     local_path = tmp_path / "tendu_devant.md"
     local_path.write_text("# Tendu devant\n", encoding="utf-8")
@@ -128,6 +144,27 @@ def test_publish_does_not_overwrite_existing_page(tmp_path: Path) -> None:
         publisher.publish(local_path)
 
     assert urlopen.call_count == 1
+
+
+def test_idempotent_publish_accepts_identical_existing_page(tmp_path: Path) -> None:
+    local_path = tmp_path / "plies-01jabc.md"
+    local_path.write_text("# Pliés\n", encoding="utf-8")
+    publisher = SilverBulletPublisher(
+        "https://notes.example.com",
+        "secret-token",
+        "ballet/aulas",
+    )
+    response = MagicMock()
+    response.__enter__.return_value = response
+    response.read.return_value = b"# Pli\xc3\xa9s\n"
+
+    with patch("agent.silverbullet.urlopen", return_value=response) as urlopen:
+        published = publisher.publish_idempotent(local_path)
+
+    assert urlopen.call_count == 1
+    assert published.url == (
+        "https://notes.example.com/ballet/aulas/plies-01jabc"
+    )
 
 
 def test_http_error_includes_response_details() -> None:
