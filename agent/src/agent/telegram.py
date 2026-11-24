@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import logging
 import tempfile
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from langchain_core.tracers.langchain import wait_for_all_tracers
 from pydantic import ValidationError
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ChatType
+from telegram.error import NetworkError
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -28,6 +30,9 @@ from agent.transcription import SUPPORTED_AUDIO_EXTENSIONS
 logger = logging.getLogger(__name__)
 
 CALLBACK_PREFIX = "yas:retry:"
+TELEGRAM_NETWORK_ATTEMPTS = 3
+TELEGRAM_RETRY_DELAY_SECONDS = 1.0
+TELEGRAM_REQUEST_TIMEOUT_SECONDS = 30.0
 
 
 class TelegramGateway:
@@ -97,14 +102,59 @@ class TelegramGateway:
             raise ValueError(f"formato não suportado; envie {supported}")
         return media, extension
 
+    @staticmethod
+    async def _telegram_call(
+        operation: Callable[[], Awaitable[Any]],
+        description: str,
+    ) -> Any:
+        for attempt in range(1, TELEGRAM_NETWORK_ATTEMPTS + 1):
+            try:
+                return await operation()
+            except NetworkError:
+                if attempt == TELEGRAM_NETWORK_ATTEMPTS:
+                    raise
+                logger.warning(
+                    "%s failed due to a Telegram network error; retrying (%d/%d)",
+                    description,
+                    attempt,
+                    TELEGRAM_NETWORK_ATTEMPTS,
+                )
+                await asyncio.sleep(TELEGRAM_RETRY_DELAY_SECONDS * attempt)
+        raise RuntimeError("Telegram retry loop ended unexpectedly")
+
+    async def _reply_text(
+        self,
+        message: Any,
+        text: str,
+        **kwargs: Any,
+    ) -> bool:
+        try:
+            await self._telegram_call(
+                lambda: message.reply_text(text, **kwargs),
+                "Sending Telegram reply",
+            )
+        except NetworkError:
+            logger.error(
+                "Unable to send Telegram reply after %d attempts",
+                TELEGRAM_NETWORK_ATTEMPTS,
+            )
+            return False
+        return True
+
     async def _download_audio(self, message: Any, context: Any, path: Path) -> None:
         media, _ = self._audio_details(message)
         file_size = getattr(media, "file_size", None)
         if file_size is not None and file_size > self.settings.telegram_max_audio_bytes:
             maximum_mb = self.settings.telegram_max_audio_bytes // (1024 * 1024)
             raise ValueError(f"o áudio excede o limite de {maximum_mb} MB")
-        telegram_file = await context.bot.get_file(media.file_id)
-        await telegram_file.download_to_drive(custom_path=path)
+        telegram_file = await self._telegram_call(
+            lambda: context.bot.get_file(media.file_id),
+            "Getting Telegram audio metadata",
+        )
+        await self._telegram_call(
+            lambda: telegram_file.download_to_drive(custom_path=path),
+            "Downloading Telegram audio",
+        )
 
     async def _attempt(self, job_id: str) -> PublishAttempt:
         async with self._publication_lock:
@@ -142,10 +192,10 @@ class TelegramGateway:
         try:
             _, extension = self._audio_details(message)
         except ValueError as error:
-            await message.reply_text(str(error))
+            await self._reply_text(message, str(error))
             return
 
-        await message.reply_text("Áudio recebido. Processando...")
+        await self._reply_text(message, "Áudio recebido. Processando...")
 
         async with self._processing_lock:
             try:
@@ -166,31 +216,36 @@ class TelegramGateway:
                         job.id,
                         self.settings,
                     )
-                    await message.reply_text(
+                    await self._reply_text(
+                        message,
                         "O áudio foi processado, mas nenhum exercício pôde "
-                        "ser identificado com segurança."
+                        "ser identificado com segurança.",
                     )
                     if job.ambiguities:
-                        await message.reply_text(
-                            self._ambiguities_text(job.ambiguities)
+                        await self._reply_text(
+                            message, self._ambiguities_text(job.ambiguities)
                         )
                     return
 
                 attempt = await self._attempt(job.id)
                 if attempt.complete:
-                    await message.reply_text(self._success_text(attempt))
+                    await self._reply_text(message, self._success_text(attempt))
                 else:
-                    await message.reply_text(
+                    await self._reply_text(
+                        message,
                         "O exercício foi salvo, mas não foi possível publicar "
                         "no SilverBullet. Uma nova tentativa será feita "
                         "automaticamente.",
                         reply_markup=self._retry_markup(job.id),
                     )
                 if job.ambiguities:
-                    await message.reply_text(self._ambiguities_text(job.ambiguities))
-            except (OSError, ValueError, RuntimeError):
+                    await self._reply_text(
+                        message,
+                        self._ambiguities_text(job.ambiguities),
+                    )
+            except (NetworkError, OSError, ValueError, RuntimeError):
                 logger.exception("Failed to process Telegram audio")
-                await message.reply_text("Não foi possível processar o áudio.")
+                await self._reply_text(message, "Não foi possível processar o áudio.")
 
     async def handle_retry(
         self,
@@ -233,11 +288,14 @@ class TelegramGateway:
             try:
                 attempt = await self._attempt(job.id)
                 if attempt.complete:
-                    await application.bot.send_message(
-                        chat_id=job.telegram_chat_id,
-                        text=self._success_text(attempt),
+                    await self._telegram_call(
+                        lambda: application.bot.send_message(
+                            chat_id=job.telegram_chat_id,
+                            text=self._success_text(attempt),
+                        ),
+                        "Sending automatic publication confirmation",
                     )
-            except (OSError, ValueError, RuntimeError):
+            except (NetworkError, OSError, ValueError, RuntimeError):
                 logger.exception("Automatic retry failed for job %s", job.id)
 
     async def _retry_loop(self, application: Application) -> None:
@@ -278,6 +336,10 @@ def build_application(settings: Settings) -> Application:
     application = (
         ApplicationBuilder()
         .token(token.get_secret_value())
+        .connect_timeout(TELEGRAM_REQUEST_TIMEOUT_SECONDS)
+        .read_timeout(TELEGRAM_REQUEST_TIMEOUT_SECONDS)
+        .write_timeout(TELEGRAM_REQUEST_TIMEOUT_SECONDS)
+        .pool_timeout(TELEGRAM_REQUEST_TIMEOUT_SECONDS)
         .concurrent_updates(False)
         .post_init(gateway.initialize)
         .post_stop(gateway.shutdown)
@@ -300,6 +362,7 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     try:
         settings = Settings()
         application = build_application(settings)

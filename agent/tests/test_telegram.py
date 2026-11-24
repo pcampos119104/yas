@@ -1,10 +1,18 @@
+import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from telegram import Update
+from telegram.error import TimedOut
 
 from agent.config import Settings
-from agent.telegram import TelegramGateway, build_application
+from agent.telegram import (
+    TELEGRAM_NETWORK_ATTEMPTS,
+    TELEGRAM_REQUEST_TIMEOUT_SECONDS,
+    TelegramGateway,
+    build_application,
+)
 
 
 def telegram_settings(tmp_path) -> Settings:
@@ -45,9 +53,43 @@ def test_gateway_rejects_unsupported_audio_extension(tmp_path) -> None:
     )
 
     with pytest.raises(ValueError, match="formato não suportado"):
-        gateway._audio_details(
-            SimpleNamespace(voice=None, audio=audio, document=None)
-        )
+        gateway._audio_details(SimpleNamespace(voice=None, audio=audio, document=None))
+
+
+def test_gateway_retries_transient_telegram_timeout(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gateway = TelegramGateway(telegram_settings(tmp_path))
+    message = SimpleNamespace(
+        reply_text=AsyncMock(side_effect=[TimedOut(), None]),
+    )
+    sleep = AsyncMock()
+    monkeypatch.setattr("agent.telegram.asyncio.sleep", sleep)
+
+    sent = asyncio.run(gateway._reply_text(message, "Teste"))
+
+    assert sent is True
+    assert message.reply_text.await_count == 2
+    sleep.assert_awaited_once()
+
+
+def test_gateway_continues_when_telegram_reply_times_out(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gateway = TelegramGateway(telegram_settings(tmp_path))
+    message = SimpleNamespace(
+        reply_text=AsyncMock(
+            side_effect=[TimedOut() for _ in range(TELEGRAM_NETWORK_ATTEMPTS)]
+        ),
+    )
+    monkeypatch.setattr("agent.telegram.asyncio.sleep", AsyncMock())
+
+    sent = asyncio.run(gateway._reply_text(message, "Teste"))
+
+    assert sent is False
+    assert message.reply_text.await_count == TELEGRAM_NETWORK_ATTEMPTS
 
 
 def test_build_application_ignores_text_and_accepts_voice(tmp_path) -> None:
@@ -93,3 +135,4 @@ def test_build_application_ignores_text_and_accepts_voice(tmp_path) -> None:
 
     assert message_handlers[0].check_update(text_update) is False
     assert message_handlers[0].check_update(voice_update) is True
+    assert application.bot.request.read_timeout == TELEGRAM_REQUEST_TIMEOUT_SECONDS
