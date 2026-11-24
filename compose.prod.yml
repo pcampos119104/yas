@@ -1,8 +1,7 @@
 services:
   telegram-bot:
-    build:
-      context: ./agent
-      dockerfile: Dockerfile
+    image: ${YAS_IMAGE:-ghcr.io/pcampos119104/yas:latest}
+    pull_policy: always
     restart: unless-stopped
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
